@@ -1,0 +1,8 @@
+.venv/*
+.venv
+.env
+venv
+.hf*
+.hf_cache/*
+.hf_cache
+*_cache
