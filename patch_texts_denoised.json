@@ -6,10 +6,10 @@
       "row": 7,
       "col": 33,
       "box": [
-        213,
-        279,
-        2202,
-        2252
+        378,
+        432,
+        1254,
+        1292
       ],
       "text": "Manga Kissa Shibuya — Daily Activity Report"
     },
@@ -18,10 +18,10 @@
       "row": 9,
       "col": 30,
       "box": [
-        594,
-        660,
-        845,
-        895
+        486,
+        540,
+        1140,
+        1178
       ],
       "text": "This report summarizes the usage of the Manga Kissa lounge in Shibuya. It includes visitor"
     },
@@ -30,10 +30,10 @@
       "row": 10,
       "col": 35,
       "box": [
-        432,
-        498,
-        1658,
-        1708
+        540,
+        594,
+        1330,
+        1368
       ],
       "text": "attendance, reservation summary, and snack sales statistics for the last 24 hours"
     },
@@ -42,10 +42,10 @@
       "row": 14,
       "col": 18,
       "box": [
-        651,
-        717,
-        1465,
-        1515
+        756,
+        810,
+        684,
+        722
       ],
       "text": "Table 1 — Attendance by Time Slot"
     },
@@ -54,10 +54,10 @@
       "row": 15,
       "col": 41,
       "box": [
-        759,
-        825,
-        2202,
-        2252
+        810,
+        864,
+        1558,
+        1596
       ],
       "text": "Time Slot Reserved Seats"
     },
@@ -66,10 +66,10 @@
       "row": 24,
       "col": 17,
       "box": [
-        1308,
-        1374,
-        187,
-        237
+        1296,
+        1350,
+        646,
+        684
       ],
       "text": "Figure 1 — Snack Sales Statistics"
     },
@@ -78,10 +78,10 @@
       "row": 27,
       "col": 24,
       "box": [
-        1416,
-        1482,
-        2009,
-        2059
+        1458,
+        1512,
+        912,
+        950
       ],
       "text": "Snack Sales (Units)"
     },
@@ -90,10 +90,10 @@
       "row": 31,
       "col": 10,
       "box": [
-        1635,
-        1701,
-        1930,
-        1980
+        1674,
+        1728,
+        380,
+        418
       ],
       "text": "90"
     },
@@ -102,10 +102,10 @@
       "row": 33,
       "col": 10,
       "box": [
-        1854,
-        1920,
-        690,
-        740
+        1782,
+        1836,
+        380,
+        418
       ],
       "text": "80"
     },
@@ -114,10 +114,10 @@
       "row": 34,
       "col": 10,
       "box": [
-        1854,
-        1920,
-        1310,
-        1360
+        1836,
+        1890,
+        380,
+        418
       ],
       "text": "70"
     },
@@ -126,10 +126,10 @@
       "row": 36,
       "col": 10,
       "box": [
-        2073,
-        2139,
-        70,
-        120
+        1944,
+        1998,
+        380,
+        418
       ],
       "text": "60"
     },
@@ -138,10 +138,10 @@
       "row": 38,
       "col": 10,
       "box": [
-        2073,
-        2139,
-        1310,
-        1360
+        2052,
+        2106,
+        380,
+        418
       ],
       "text": "50"
     },
@@ -150,10 +150,10 @@
       "row": 39,
       "col": 29,
       "box": [
-        2127,
-        2193,
-        2047,
-        2097
+        2106,
+        2160,
+        1102,
+        1140
       ],
       "text": "Coffee Ramen Manga Set Dessert Soft Drinks"
     },
@@ -162,10 +162,10 @@
       "row": 43,
       "col": 36,
       "box": [
-        2238,
-        2304,
-        2164,
-        2214
+        2322,
+        2376,
+        1368,
+        1406
       ],
       "text": "Observation: evening hours remain the busiest. Snack sales correlate with total"
     },
@@ -174,10 +174,10 @@
       "row": 44,
       "col": 27,
       "box": [
-        2511,
-        2577,
-        263,
-        313
+        2376,
+        2430,
+        1026,
+        1064
       ],
       "text": "attendance. Reservation system performed within acceptable limits"
     },
@@ -186,10 +186,10 @@
       "row": 46,
       "col": 17,
       "box": [
-        2403,
-        2469,
-        1427,
-        1477
+        2484,
+        2538,
+        646,
+        684
       ],
       "text": "Prepared by: Al Ops Assistant Date: Today"
     }

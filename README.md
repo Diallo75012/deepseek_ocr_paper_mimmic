@@ -131,7 +131,7 @@ pip install requests
 python3 creditizens-ocr.py \
   --pdf manga_kissa_report.pdf \
   --query "evening attendance and snack sales" \
-  --beta 0.0 \
+  --beta 0.3 \
   --ollama \
   --ollama-model qwen2.5:1.5b-instruct \
   --ollama-num-ctx 4096 \
@@ -139,3 +139,5 @@ python3 creditizens-ocr.py \
   --ollama-topn-cells 60 \
   --out-prefix results_topk
 ```
+
+# **IMPORTANT**: for the run command in terminal check script files top comment as it might change a bit as have added parameters like `--condidence-score`

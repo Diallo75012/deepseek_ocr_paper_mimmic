@@ -5,14 +5,14 @@
     "row": 43,
     "col": 36,
     "box": [
-      2238,
-      2304,
-      2164,
-      2214
+      2322,
+      2376,
+      1368,
+      1406
     ],
-    "score_hybrid": 0.6225530505180359,
+    "score_hybrid": 0.615983784198761,
     "score_text": 0.8031121492385864,
-    "score_clip": 0.201248437166214,
+    "score_clip": 0.17935091257095337,
     "snippet": "Observation: evening hours remain the busiest. Snack sales correlate with total"
   },
   {
@@ -21,14 +21,14 @@
     "row": 10,
     "col": 35,
     "box": [
-      432,
-      498,
-      1658,
-      1708
+      540,
+      594,
+      1330,
+      1368
     ],
-    "score_hybrid": 0.6153746247291565,
+    "score_hybrid": 0.607336699962616,
     "score_text": 0.79285728931427,
-    "score_clip": 0.201248437166214,
+    "score_clip": 0.174455463886261,
     "snippet": "attendance, reservation summary, and snack sales statistics for the last 24 hours"
   },
   {
@@ -37,14 +37,14 @@
     "row": 24,
     "col": 17,
     "box": [
-      1308,
-      1374,
-      187,
-      237
+      1296,
+      1350,
+      646,
+      684
     ],
-    "score_hybrid": 0.5160704851150513,
+    "score_hybrid": 0.521449625492096,
     "score_text": 0.6509941816329956,
-    "score_clip": 0.201248437166214,
+    "score_clip": 0.21917901933193207,
     "snippet": "Figure 1 — Snack Sales Statistics"
   }
 ]

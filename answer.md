@@ -2,11 +2,11 @@
 
 **Top match (cell 43,36)**
 
-- Hybrid score: **0.623**  
+- Hybrid score: **0.616**  
 - Text score: **0.803**  
-- CLIP score: **0.201**
+- CLIP score: **0.179**
 
-- Box: `y0=2238, y1=2304, x0=2164, x1=2214`
+- Box: `y0=2322, y1=2376, x0=1368, x1=1406`
 
 **Snippet:**
 

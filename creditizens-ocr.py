@@ -3,14 +3,16 @@ demo.py — CPU-only, 1-page DeepSeek-OCR mimic for @creditizens
 
 What it shows:
 1) PDF -> image
-2) 16x16 macro-grid, each macro split 4x4 => 64x64 micro-grid = 4096 tokens (neighbor-aware halo)
+2) 16x16 macro-grid => 256 tokens (layout-aligned)
 3) Visual encoder (MobileNetV3-Small) -> 256-D tokens
-4) Widen 256 -> 1024
-5) Full self-attention over 4096 tokens at 1024-D (true long-context step)
-6) Compress 1024 -> 256 (storable compact representation)
-7) OCR page, map words to micro-cells
-8) Dual retrieval (Text via MiniLM, Vision via OpenCLIP) + hybrid scoring
-9) Top-k results + heatmap visualization
+4) Widen 256 -> 1024 (capacity for token-space expansion)
+5) Stretch 16x16 tokens -> 64x64 = 4096 tokens (bilinear upsampling in token space, neighbor-aware)
+6) Compress 1024 -> 256 (bottleneck before attention)
+7) Full self-attention over 4096 tokens at 256-D (true long-context step, cheaper)
+8) OCR page, map words to 64x64 micro-cells
+9) Dual retrieval (Text via MiniLM, Vision via OpenCLIP@macro then upsample) + hybrid scoring
+10) Top-k results + heatmap visualization
+11) (Optional) Local Ollama agent to synthesize a friendly answer
 
 CPU friendly (one page). No training — architecture demo.
 """
@@ -29,9 +31,6 @@ ollama pull llama3.2:1b-instruct
 # or
 ollama pull phi3:mini
 
-# for context length can change it with this:
---ollama-num-ctx
-
 # 4) Ensure 'requests' is installed for the script
 pip install requests
 
@@ -39,14 +38,16 @@ pip install requests
 python3 creditizens-ocr.py \
   --pdf manga_kissa_report.pdf \
   --query "evening attendance and snack sales" \
-  --beta 0.0 \
+  --beta 0.3 \
   --ollama \
   --ollama-model qwen2.5:1.5b-instruct \
   --ollama-num-ctx 4096 \
   --ollama-num-predict 512 \
-  --ollama-topn-cells 60 \
-  --out-prefix results_topk
+  --ollama-topn-cells 300 \
+  --out-prefix results_topk \
+  --confidence-score 54
 """
+
 # --- Project-local cache + stable threading (very top, before ALL imports) ---
 import os
 HF_HOME = os.path.join(os.getcwd(), ".hf_cache")
@@ -64,7 +65,6 @@ try:
 except Exception:
   pass
 
-
 # stdlib and libs
 import json, math, argparse, re, time, textwrap
 import numpy as np
@@ -79,7 +79,6 @@ import timm
 from sentence_transformers import SentenceTransformer
 import open_clip
 
-
 # optional dependency for Ollama HTTP calls
 try:
   import requests
@@ -92,12 +91,10 @@ def parse_args():
   ap = argparse.ArgumentParser(description="DeepSeek-OCR mimic (CPU-only, 1-page)")
   ap.add_argument("--pdf", required=True, help="Input 1-page PDF path")
   ap.add_argument("--dpi", type=int, default=300, help="Raster DPI (300-400 is good)")
-  ap.add_argument("--macro-grid", type=int, default=16, help="Base macro grid (16 like paper)")
-  ap.add_argument("--micro-factor", type=int, default=4, help="Micro split per macro cell (4 -> 64x64 total)")
-  ap.add_argument("--halo", type=int, default=6, help="Halo pixels around micro-patches")
+  ap.add_argument("--macro-grid", type=int, default=16, help="Base macro grid (16 like paper) -> 256 tokens")
   ap.add_argument("--encoder-size", type=int, default=160, help="CNN input size (smaller than 224 for CPU speed)")
   ap.add_argument("--feature-dim", type=int, default=256, help="Compact token dim")
-  ap.add_argument("--widen-dim", type=int, default=1024, help="Expanded dim before attention")
+  ap.add_argument("--widen-dim", type=int, default=1024, help="Expanded dim before upsampling")
   ap.add_argument("--ocr-lang", default="eng", help="Tesseract language (e.g., eng, eng+fra)")
   ap.add_argument("--query", required=True, help="User query for retrieval")
   ap.add_argument("--topk", type=int, default=3, help="Top-k results to show")
@@ -105,7 +102,7 @@ def parse_args():
   ap.add_argument("--beta", type=float, default=0.3, help="Weight for CLIP vision score (set 0.0 to skip CLIP)")
   ap.add_argument("--no-clip", action="store_true", help="Force skip CLIP (debug)")
   ap.add_argument("--out-prefix", default="results_topk", help="Basename for result files")
-  ap.add_argument("--clip-candidates", type=int, default=200, help="Run CLIP only on top-N text candidates (speeds up CPU)")
+  ap.add_argument("--clip-candidates", type=int, default=200, help="Run CLIP only on top-N text candidates (macro level)")
   ap.add_argument("--ollama", action="store_true", help="Use a local Ollama model to synthesize a final human answer")
   ap.add_argument("--ollama-url", default="http://localhost:11434", help="Ollama base URL")
   ap.add_argument("--ollama-model", default="qwen2.5:1.5b-instruct", help="Ollama model name (CPU-friendly)")
@@ -113,6 +110,7 @@ def parse_args():
   ap.add_argument("--ollama-num-ctx", type=int, default=4096, help="Context window size")
   ap.add_argument("--ollama-temperature", type=float, default=0.2, help="Generation temperature")
   ap.add_argument("--ollama-topn-cells", type=int, default=60, help="How many high-score cells to include in agent context")
+  ap.add_argument("--confidence-score", type=int, default=60, help="Confidence score threshold to filtrate results relevance")
   return ap.parse_args()
 
 # --------------------------- Step 1: PDF -> Image ---------------------------
@@ -124,32 +122,37 @@ def pdf_to_image(pdf_path: str, dpi: int = 300) -> np.ndarray:
   img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
   return img
 
-# --------------------------- Step 2: Grid -> 4096 micro-patches ---------------------------
+# --------------------------- Grid helpers ---------------------------
 
-def microgrid_patches(image_rgb: np.ndarray, macro: int, micro_factor: int,
-                      halo: int, size: int):
+def macrogrid_patches(image_rgb: np.ndarray, macro: int, size: int):
   H, W = image_rgb.shape[:2]
   mh, mw = H // macro, W // macro
   patches, boxes = [], []
   for mr in range(macro):
     for mc in range(macro):
-      y0m, y1m = mr * mh, (mr + 1) * mh
-      x0m, x1m = mc * mw, (mc + 1) * mw
-      ph = (y1m - y0m) // micro_factor
-      pw = (x1m - x0m) // micro_factor
-      for rr in range(micro_factor):
-        for cc in range(micro_factor):
-          y0 = max(y0m + rr * ph - halo, 0)
-          y1 = min(y0m + (rr + 1) * ph + halo, H)
-          x0 = max(x0m + cc * pw - halo, 0)
-          x1 = min(x0m + (cc + 1) * pw + halo, W)
-          crop = image_rgb[y0:y1, x0:x1]
-          crop = cv2.resize(crop, (size, size), interpolation=cv2.INTER_AREA)
-          patches.append(crop)
-          boxes.append((int(y0), int(y1), int(x0), int(x1)))
+      y0 = mr * mh
+      y1 = (mr + 1) * mh
+      x0 = mc * mw
+      x1 = (mc + 1) * mw
+      crop = image_rgb[y0:y1, x0:x1]
+      crop = cv2.resize(crop, (size, size), interpolation=cv2.INTER_AREA)
+      patches.append(crop)
+      boxes.append((int(y0), int(y1), int(x0), int(x1)))
   patches = np.stack(patches, 0)
   boxes = np.array(boxes)
   return patches, boxes
+
+def make_grid_boxes(H: int, W: int, side: int):
+  cell_h, cell_w = H // side, W // side
+  boxes = []
+  for r in range(side):
+    for c in range(side):
+      y0 = r * cell_h
+      y1 = (r + 1) * cell_h
+      x0 = c * cell_w
+      x1 = (c + 1) * cell_w
+      boxes.append((y0, y1, x0, x1))
+  return np.array(boxes, dtype=np.int32)
 
 # --------------------------- Step 3: Visual Encoder -> 256-D tokens ---------------------------
 
@@ -175,7 +178,17 @@ def encode_patches_to_256(patches_rgb: np.ndarray, backbone, proj_to_256, device
 def build_widen(feature_dim: int, widen_dim: int, device: str = "cpu"):
   return nn.Linear(feature_dim, widen_dim, bias=False).to(device)
 
-# --------------------------- Step 5: Full Self-Attention over 4096 tokens ---------------------------
+# --------------------------- Step 5: Stretch 16x16 -> 64x64 in token space ---------------------------
+
+def upsample_tokens_bilinear(tokens_2d_1024: torch.Tensor, in_side: int, out_side: int) -> torch.Tensor:
+  # tokens_2d_1024: (N=side*side, 1024)
+  # reshape to (1, C=1024, H=in_side, W=in_side)
+  x = tokens_2d_1024.view(in_side, in_side, -1).permute(2, 0, 1).unsqueeze(0)
+  x = F.interpolate(x, size=(out_side, out_side), mode="bilinear", align_corners=False)
+  x = x.squeeze(0).permute(1, 2, 0).contiguous().view(out_side * out_side, -1)
+  return x
+
+# --------------------------- Step 6/7: Compress and Attention ---------------------------
 
 class SimpleSelfAttention(nn.Module):
   def __init__(self, dim: int, qkv_dim: int | None = None):
@@ -185,7 +198,6 @@ class SimpleSelfAttention(nn.Module):
     self.k = nn.Linear(dim, qkv_dim, bias=False)
     self.v = nn.Linear(dim, qkv_dim, bias=False)
     self.scale = 1.0 / math.sqrt(qkv_dim)
-
   def forward(self, x: torch.Tensor) -> torch.Tensor:
     q = self.q(x)
     k = self.k(x)
@@ -194,26 +206,24 @@ class SimpleSelfAttention(nn.Module):
     att = F.softmax(att, dim=-1)
     return att @ v
 
-# --------------------------- Step 6: Compress 1024 -> 256 & Save ---------------------------
-
 def save_tokens(tokens_256: np.ndarray, boxes: np.ndarray, grid_side: int,
-                H: int, W: int, dpi: int, macro: int, micro_factor: int, out="page_tokens_4096.npz"):
+                H: int, W: int, dpi: int, macro: int, out="page_tokens_4096.npz"):
   np.savez(out,
            tokens=tokens_256.astype(np.float32),
            boxes=boxes,
            grid=np.array([grid_side, grid_side], dtype=np.int32),
            meta=np.array([H, W, dpi], dtype=np.int32),
-           macro=np.array([macro, micro_factor], dtype=np.int32))
+           macro=np.array([macro], dtype=np.int32))
   print(f"[OK] Saved tokens -> {os.path.abspath(out)}")
 
-# --------------------------- Step 7: OCR page & map words to micro-patches ---------------------------
+# --------------------------- Step 8: OCR page & map words to micro-cells ---------------------------
 
 def _clean_text(s: str) -> str:
   s = re.sub(r"\s+", " ", s)
   s = s.strip(" -:;,.")
   return s.strip()
 
-def ocr_page_to_patch_texts(img_rgb: np.ndarray, grid_side: int, lang: str = "eng") -> list[str]:
+def ocr_page_to_patch_texts(img_rgb: np.ndarray, grid_side: int, confidence: int, lang: str = "eng") -> list[str]:
   H, W = img_rgb.shape[:2]
   cell_h, cell_w = H // grid_side, W // grid_side
   pil = Image.fromarray(img_rgb)
@@ -230,7 +240,10 @@ def ocr_page_to_patch_texts(img_rgb: np.ndarray, grid_side: int, lang: str = "en
       conf = int(ocr["conf"][i])
     except Exception:
       conf = -1
-    if conf < 60:
+    # to get rid of noise we put confidence level at 60/100 but because of model maybe we go a bit lower 54/100 to get something to play withuuu
+    # if conf < 60:
+    if conf < confidence:
+      print(f"[Low OCR confidence {conf}] Skipped: {txt}")
       continue
     line_id = (ocr["block_num"][i], ocr["par_num"][i], ocr["line_num"][i])
     x, y, w, h = ocr["left"][i], ocr["top"][i], ocr["width"][i], ocr["height"][i]
@@ -262,7 +275,7 @@ def ocr_page_to_patch_texts(img_rgb: np.ndarray, grid_side: int, lang: str = "en
     texts[i] = t
   return texts
 
-# --------------------------- Step 8: Dual Retrieval (Text + CLIP) ---------------------------
+# --------------------------- Step 9: Dual Retrieval (Text + CLIP@macro -> upsample) ---------------------------
 
 def build_text_embedder():
   model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device="cpu")
@@ -381,12 +394,31 @@ def build_agent_context(denoised_cells, order, score_hybrid, score_text, score_c
   kept_cells = [c for c in denoised_cells if int(c["idx"]) in keep]
   kept_cells = kept_cells[:topn_cells]
   lines = ["# Denoised Cells (subset)", "", "| idx | r | c | text |", "|---:|---:|---:|---|"]
+  # the numbers fromt he table are not being passed to the LLM context because of the truncation
+  # so here we replace it detecting if there is a digit then we don't truncate otherwise we do truncate
+  # for c in kept_cells:
+  #   lines.append(f"| {c['idx']} | {c['row']} | {c['col']} | {truncate(c['text'], 160).replace('|','\\|')} |")
   for c in kept_cells:
-    lines.append(f"| {c['idx']} | {c['row']} | {c['col']} | {truncate(c['text'], 160).replace('|','\\|')} |")
+    txt = c['text']
+    # If no digits, truncate for readability; otherwise keep full line so numbers aren't lost
+    if not re.search(r"\d", txt):
+      # here we truncate ad no digits
+      txt = truncate(txt, 160)
+      lines.append(f"| {c['idx']} | {c['row']} | {c['col']} | {txt.replace('|','\\|')} |")
+    else:
+      # here we do not truncate and get the digits (now LLM will be able to interpret)
+      lines.append(f"| {c['idx']} | {c['row']} | {c['col']} | {txt.replace('|','\\|')} |")
+
   top_table = ["", "# Retrieval Top-k", "", "| Rank | Hybrid | Text | CLIP | Cell (r,c) | Snippet |", "|---:|---:|---:|---:|:---:|---|"]
   for rank, idx in enumerate(order, 1):
     r, c = divmod(int(idx), grid_side)
-    top_table.append(f"| {rank} | {score_hybrid[idx]:.3f} | {score_text[idx]:.3f} | {score_clip[idx]:.3f} | ({r},{c}) | {truncate(texts[idx], 180).replace('|','\\|')} |")
+    # making it digit aware here also we try to get those digits in for the LLM improved report results and better interpretation
+    snip = texts[idx] or ""
+    if not re.search(r"\d", snip):
+      snip = truncate(snip, 180)
+      top_table.append(f"| {rank} | {score_hybrid[idx]:.3f} | {score_text[idx]:.3f} | {score_clip[idx]:.3f} | ({r},{c}) | {snip.replace('|','\\|')} |")
+    else:
+      top_table.append(f"| {rank} | {score_hybrid[idx]:.3f} | {score_text[idx]:.3f} | {score_clip[idx]:.3f} | ({r},{c}) | {truncate(texts[idx], 180).replace('|','\\|')} |")
   return "\n".join(lines + top_table)
 
 def call_ollama(url, model, system_prompt, user_prompt, num_ctx=4096, num_predict=512, temperature=0.2):
@@ -428,95 +460,108 @@ def main():
   H, W = img_rgb.shape[:2]
   print(f"[Info] Page: {H}x{W} @ {args.dpi} DPI in {time.perf_counter()-t0:.2f}s")
 
-  print("[Step 2] Building 16x16 -> 64x64 micro-grid...")
+  print("[Step 2] Building 16x16 macro grid -> 256 tokens...")
   t1 = time.perf_counter()
-  patches_rgb, boxes = microgrid_patches(
-    img_rgb, macro=args.macro_grid, micro_factor=args.micro_factor,
-    halo=args.halo, size=args.encoder_size
-  )
-  grid_side = args.macro_grid * args.micro_factor
-  N = grid_side * grid_side
-  print(f"[Info] Grid: {grid_side}x{grid_side} = {N} patches in {time.perf_counter()-t1:.2f}s")
+  macro = args.macro_grid
+  macro_patches, macro_boxes = macrogrid_patches(img_rgb, macro=macro, size=args.encoder_size)
+  print(f"[Info] Macro grid: {macro}x{macro} = {macro_patches.shape[0]} patches in {time.perf_counter()-t1:.2f}s")
 
-  print("[Step 3] Visual encoder -> 256D tokens...")
+  print("[Step 3] Visual encoder -> 256D tokens (macro level)...")
   t2 = time.perf_counter()
   backbone, proj_to_256 = build_backbone_and_proj(args.feature_dim, device="cpu")
-  tokens_256 = encode_patches_to_256(patches_rgb, backbone, proj_to_256, device="cpu")
-  print(f"[Info] Encoded tokens: {tuple(tokens_256.shape)} in {time.perf_counter()-t2:.2f}s")
+  macro_tokens_256 = encode_patches_to_256(macro_patches, backbone, proj_to_256, device="cpu")   # (256, 256)
+  print(f"[Info] Encoded macro tokens: {tuple(macro_tokens_256.shape)} in {time.perf_counter()-t2:.2f}s")
 
-  print("[Step 4] Widen 256 -> 1024...")
+  print("[Step 4] Widen 256 -> 1024 (macro level)...")
   t3 = time.perf_counter()
   widen = build_widen(args.feature_dim, args.widen_dim, device="cpu")
-  tokens_1024 = widen(tokens_256).contiguous()
-  print(f"[Info] Widened tokens: {tuple(tokens_1024.shape)} in {time.perf_counter()-t3:.2f}s")
+  macro_tokens_1024 = widen(macro_tokens_256).contiguous()                                       # (256, 1024)
+  print(f"[Info] Widened macro tokens: {tuple(macro_tokens_1024.shape)} in {time.perf_counter()-t3:.2f}s")
 
-  print("[Step 5] 4096-token self-attention @ 1024-D...")
+  print("[Step 5] Stretch 16x16 -> 64x64 in token space (neighbor-aware bilinear)...")
   t4 = time.perf_counter()
-  attn = SimpleSelfAttention(args.widen_dim).eval()
-  tokens_ctx_1024 = attn(tokens_1024)
-  print(f"[Info] Context-mixed tokens: {tuple(tokens_ctx_1024.shape)} in {time.perf_counter()-t4:.2f}s")
+  grid_in = macro
+  grid_out = macro * 4
+  tokens_1024_4096 = upsample_tokens_bilinear(macro_tokens_1024, in_side=grid_in, out_side=grid_out)  # (4096, 1024)
+  micro_boxes = make_grid_boxes(H, W, grid_out)
+  print(f"[Info] Token grid stretched: {grid_out}x{grid_out} = {tokens_1024_4096.shape[0]} in {time.perf_counter()-t4:.2f}s")
 
-  print("[Step 6] Compress 1024 -> 256 & save...")
+  print("[Step 6] Compress 1024 -> 256 (bottleneck before attention)...")
   t5 = time.perf_counter()
   proj_down = nn.Linear(args.widen_dim, args.feature_dim, bias=False)
-  tokens_compact_256 = proj_down(tokens_ctx_1024).detach().cpu().numpy()
-  save_tokens(tokens_compact_256, boxes, grid_side, H, W, args.dpi,
-              args.macro_grid, args.micro_factor)
-  print(f"[Info] Saved tokens in {time.perf_counter()-t5:.2f}s")
+  tokens_256_4096 = proj_down(tokens_1024_4096)                                                   # (4096, 256)
+  print(f"[Info] Compressed tokens: {tuple(tokens_256_4096.shape)} in {time.perf_counter()-t5:.2f}s")
 
-  print("[Step 7] OCR page -> micro-cells...")
+  print("[Step 7] 4096-token self-attention @ 256-D...")
   t6 = time.perf_counter()
-  texts = ocr_page_to_patch_texts(img_rgb, grid_side, lang=args.ocr_lang)
+  attn = SimpleSelfAttention(args.feature_dim).eval()
+  tokens_ctx_256 = attn(tokens_256_4096)                                                         # (4096, 256)
+  print(f"[Info] Context-mixed tokens: {tuple(tokens_ctx_256.shape)} in {time.perf_counter()-t6:.2f}s")
+
+  print("[Step 7b] Save compact long-context tokens...")
+  save_tokens(tokens_ctx_256.detach().cpu().numpy(), micro_boxes, grid_out, H, W, args.dpi, macro)
+
+  print("[Step 8] OCR page -> map to 64x64 micro-cells...")
+  t7 = time.perf_counter()
+  texts = ocr_page_to_patch_texts(img_rgb, grid_out, lang=args.ocr_lang, confidence=args.confidence_score)
   with open("patch_texts.json", "w", encoding="utf-8") as f:
-    json.dump({"grid": grid_side, "texts": texts}, f, ensure_ascii=False, indent=2)
+    json.dump({"grid": grid_out, "texts": texts}, f, ensure_ascii=False, indent=2)
   non_empty = [
-    {"idx": int(i), "row": int(i // grid_side), "col": int(i % grid_side), "box": [int(x) for x in boxes[i]], "text": texts[i]}
+    {"idx": int(i), "row": int(i // grid_out), "col": int(i % grid_out), "box": [int(x) for x in micro_boxes[i]], "text": texts[i]}
     for i in range(len(texts)) if texts[i]
   ]
   with open("patch_texts_denoised.json", "w", encoding="utf-8") as f:
-    json.dump({"grid": grid_side, "cells": non_empty}, f, ensure_ascii=False, indent=2)
-  print(f"[Info] OCR mapped in {time.perf_counter()-t6:.2f}s -> patch_texts.json, patch_texts_denoised.json")
+    json.dump({"grid": grid_out, "cells": non_empty}, f, ensure_ascii=False, indent=2)
+  print(f"[Info] OCR mapped in {time.perf_counter()-t7:.2f}s -> patch_texts.json, patch_texts_denoised.json")
 
-  print("[Step 8a] Building text embedder + scoring all patches...")
-  t7 = time.perf_counter()
+  print("[Step 9a] Text embedder + scoring all 4096 cells...")
+  t8 = time.perf_counter()
   txt_model = build_text_embedder()
   patch_texts = [t if t else "[EMPTY]" for t in texts]
-  patch_text_emb = txt_model.encode(patch_texts, normalize_embeddings=True)
-  q_txt = txt_model.encode([args.query], normalize_embeddings=True)[0]
-  sims_text_all = patch_text_emb @ q_txt
-  print(f"[Info] Text similarity computed in {time.perf_counter()-t7:.2f}s")
+  patch_text_emb = txt_model.encode(patch_texts, normalize_embeddings=True)                       # (4096, d)
+  q_txt = txt_model.encode([args.query], normalize_embeddings=True)[0]                            # (d,)
+  sims_text_all = patch_text_emb @ q_txt                                                          # (4096,)
+  print(f"[Info] Text similarity computed in {time.perf_counter()-t8:.2f}s")
 
-  sims_clip_all = np.zeros_like(sims_text_all)
+  print("[Step 9b] CLIP vision scoring (macro -> upsample) ...")
   use_clip = not (args.no_clip or args.beta == 0.0)
-
+  sims_clip_all = np.zeros_like(sims_text_all)
   if use_clip:
-    print("[Step 8b] Prefilter top-N by text for CLIP encoding...")
-    t8 = time.perf_counter()
-    Ncand = min(args.clip_candidates, sims_text_all.shape[0])
-    cand_idx = np.argsort(-sims_text_all)[:Ncand]
-    print(f"[Info] CLIP candidates: {Ncand} (of {sims_text_all.shape[0]})")
+    t9 = time.perf_counter()
+    Ncand = min(args.clip_candidates, macro_tokens_256.shape[0])
+    print(f"[Info] Using CLIP on macro patches (16x16={macro*macro}), prefilter top-{Ncand} by text over 4096 via macro binning")
 
-    print("[Step 8c] Loading OpenCLIP weights (first time may take a bit)...")
+    # map 4096 text scores back to 16x16 macro bins by averaging 4x4 regions
+    text_map_64 = sims_text_all.reshape(grid_out, grid_out)
+    text_map_16 = cv2.resize(text_map_64.astype(np.float32), (macro, macro), interpolation=cv2.INTER_AREA)
+    cand_flat = np.argsort(-text_map_16.flatten())[:Ncand]
+
+    print("[Info] Loading OpenCLIP weights (first time may take a bit)...")
     clip_model, clip_preprocess, clip_tokenizer = build_clip()
 
-    print("[Step 8d] Encoding candidate patches with CLIP image encoder...")
-    cand_patches = patches_rgb[cand_idx]
+    print("[Info] Encoding candidate macro patches with CLIP image encoder...")
+    cand_patches = macro_patches[cand_flat]
     cand_img_emb = compute_clip_image_emb(cand_patches, clip_model, clip_preprocess)
 
-    print("[Step 8e] Encoding query with CLIP text encoder...")
+    print("[Info] Encoding query with CLIP text encoder...")
     qt = clip_tokenizer([args.query])
     with torch.no_grad():
       q_clip = clip_model.encode_text(qt)
       q_clip = F.normalize(q_clip, dim=-1)[0].cpu().numpy()
 
-    print("[Step 8f] Scoring CLIP cosine similarities for candidates...")
-    sims_clip_cand = cand_img_emb @ q_clip
-    sims_clip_all[cand_idx] = sims_clip_cand
-    print(f"[Info] CLIP scoring done in {time.perf_counter()-t8:.2f}s")
-  else:
-    print("[Step 8b] CLIP disabled (beta=0.0 or --no-clip)")
+    print("[Info] Scoring CLIP cosine similarities for candidates...")
+    sims_clip_macro = np.zeros(macro * macro, dtype=np.float32)
+    sims_clip_macro[cand_flat] = (cand_img_emb @ q_clip).astype(np.float32)
 
-  print("[Step 9] Hybrid scoring + Top-K selection...")
+    # upsample macro CLIP map to 64x64 to match 4096 cells
+    clip_map_16 = sims_clip_macro.reshape(macro, macro)
+    clip_map_64 = cv2.resize(clip_map_16, (grid_out, grid_out), interpolation=cv2.INTER_CUBIC)
+    sims_clip_all = clip_map_64.reshape(grid_out * grid_out)
+    print(f"[Info] CLIP macro->micro map computed in {time.perf_counter()-t9:.2f}s")
+  else:
+    print("[Info] CLIP disabled (beta=0.0 or --no-clip)")
+
+  print("[Step 9c] Hybrid scoring + Top-K selection...")
   alpha = args.alpha
   beta = args.beta if use_clip else 0.0
   score_hybrid = alpha * sims_text_all + beta * sims_clip_all
@@ -525,17 +570,17 @@ def main():
   score_clip = sims_clip_all
   print(f"[Info] Top-{args.topk} selected. Best idx={int(order[0])} hybrid={float(score_hybrid[order[0]]):.3f}")
 
-  print("[Step 9b] Writing results tables...")
+  print("[Step 9d] Writing results tables...")
   json_path = f"{args.out_prefix}.json"
   md_path = f"{args.out_prefix}.md"
-  print_topk_table(order, boxes, score_hybrid, score_text, score_clip, texts, grid_side,
+  print_topk_table(order, micro_boxes, score_hybrid, score_text, score_clip, texts, grid_out,
                    out_json=json_path, out_md=md_path)
-  write_answer_summary(order, score_hybrid, score_text, score_clip, texts, boxes, grid_side,
+  write_answer_summary(order, score_hybrid, score_text, score_clip, texts, micro_boxes, grid_out,
                        out_path="answer.md")
 
   print("[Step 10] Visualizations...")
-  draw_topk_boxes(img_rgb, boxes, score_hybrid, order, outfile="vis_top3.png")
-  draw_score_heatmap(img_rgb, score_hybrid, grid_side, outfile="vis_heatmap.png", alpha=0.45)
+  draw_topk_boxes(img_rgb, micro_boxes, score_hybrid, order, outfile="vis_top3.png")
+  draw_score_heatmap(img_rgb, score_hybrid, grid_out, outfile="vis_heatmap.png", alpha=0.45)
 
   if args.ollama:
     print("[Step 11] Synthesizing a human-friendly answer with Ollama...")
@@ -547,14 +592,16 @@ def main():
       den_cells = []
       print(f"[Warn] Could not read patch_texts_denoised.json: {e}")
 
-    ctx_md = build_agent_context(den_cells, order, score_hybrid, score_text, score_clip, texts, grid_side, topn_cells=args.ollama_topn_cells)
+    ctx_md = build_agent_context(den_cells, order, score_hybrid, score_text, score_clip, texts, grid_out, topn_cells=args.ollama_topn_cells)
     sys_prompt = (
       "You are an analytical assistant. You receive:\n"
       "1) A denoised table of OCR cells from a single PDF page (subset).\n"
       "2) A retrieval Top-k table with scores and snippets.\n"
       "Task: Read them, then answer the user query precisely and concisely, citing concrete values if present.\n"
       "Write a short executive summary first, then a numbered bullet explanation.\n"
-      "If data is insufficient, say so and explain what is missing."
+      "If data is insufficient, say so and explain what is missing.\n"
+      "Strictly use markdown for human friendly read and ease of understanding."
+      "When you cite values, quote the exact numbers from the tables. Put every numeric value in backticks and avoid rounding."
     )
     user_prompt = textwrap.dedent(f"""
     ## User Query

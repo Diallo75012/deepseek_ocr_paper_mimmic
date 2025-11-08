@@ -1,0 +1,197 @@
+{
+  "grid": 64,
+  "cells": [
+    {
+      "idx": 481,
+      "row": 7,
+      "col": 33,
+      "box": [
+        378,
+        432,
+        1254,
+        1292
+      ],
+      "text": "Manga Kissa Shibuya — Daily Activity Report"
+    },
+    {
+      "idx": 606,
+      "row": 9,
+      "col": 30,
+      "box": [
+        486,
+        540,
+        1140,
+        1178
+      ],
+      "text": "This report summarizes the usage of the Manga Kissa lounge in Shibuya. It includes visitor"
+    },
+    {
+      "idx": 675,
+      "row": 10,
+      "col": 35,
+      "box": [
+        540,
+        594,
+        1330,
+        1368
+      ],
+      "text": "attendance, reservation summary, and snack sales statistics for the last 24 hours"
+    },
+    {
+      "idx": 914,
+      "row": 14,
+      "col": 18,
+      "box": [
+        756,
+        810,
+        684,
+        722
+      ],
+      "text": "Table 1 — Attendance by Time Slot"
+    },
+    {
+      "idx": 1001,
+      "row": 15,
+      "col": 41,
+      "box": [
+        810,
+        864,
+        1558,
+        1596
+      ],
+      "text": "Time Slot Reserved Seats"
+    },
+    {
+      "idx": 1553,
+      "row": 24,
+      "col": 17,
+      "box": [
+        1296,
+        1350,
+        646,
+        684
+      ],
+      "text": "Figure 1 — Snack Sales Statistics"
+    },
+    {
+      "idx": 1752,
+      "row": 27,
+      "col": 24,
+      "box": [
+        1458,
+        1512,
+        912,
+        950
+      ],
+      "text": "Snack Sales (Units)"
+    },
+    {
+      "idx": 1994,
+      "row": 31,
+      "col": 10,
+      "box": [
+        1674,
+        1728,
+        380,
+        418
+      ],
+      "text": "90"
+    },
+    {
+      "idx": 2122,
+      "row": 33,
+      "col": 10,
+      "box": [
+        1782,
+        1836,
+        380,
+        418
+      ],
+      "text": "80"
+    },
+    {
+      "idx": 2186,
+      "row": 34,
+      "col": 10,
+      "box": [
+        1836,
+        1890,
+        380,
+        418
+      ],
+      "text": "70"
+    },
+    {
+      "idx": 2314,
+      "row": 36,
+      "col": 10,
+      "box": [
+        1944,
+        1998,
+        380,
+        418
+      ],
+      "text": "60"
+    },
+    {
+      "idx": 2442,
+      "row": 38,
+      "col": 10,
+      "box": [
+        2052,
+        2106,
+        380,
+        418
+      ],
+      "text": "50"
+    },
+    {
+      "idx": 2525,
+      "row": 39,
+      "col": 29,
+      "box": [
+        2106,
+        2160,
+        1102,
+        1140
+      ],
+      "text": "Coffee Ramen Manga Set Dessert Soft Drinks"
+    },
+    {
+      "idx": 2788,
+      "row": 43,
+      "col": 36,
+      "box": [
+        2322,
+        2376,
+        1368,
+        1406
+      ],
+      "text": "Observation: evening hours remain the busiest. Snack sales correlate with total"
+    },
+    {
+      "idx": 2843,
+      "row": 44,
+      "col": 27,
+      "box": [
+        2376,
+        2430,
+        1026,
+        1064
+      ],
+      "text": "attendance. Reservation system performed within acceptable limits"
+    },
+    {
+      "idx": 2961,
+      "row": 46,
+      "col": 17,
+      "box": [
+        2484,
+        2538,
+        646,
+        684
+      ],
+      "text": "Prepared by: Al Ops Assistant Date: Today"
+    }
+  ]
+}
