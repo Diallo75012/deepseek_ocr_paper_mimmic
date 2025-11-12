@@ -1,5 +1,5 @@
 # DeepSeek-OCR Local Mimic (CPU-only, 1-page)
-
+`original paper: [here](https://arxiv.org/pdf/2510.18234)`
 This demo reproduces the key **ideas** from DeepSeek-OCR in a CPU-friendly pipeline:
 
 - **Layout-aware tokens**: 16×16 macro-grid subdivided 4×4 → **64×64 = 4096 micro-patches** (neighbor-aware via halo)
