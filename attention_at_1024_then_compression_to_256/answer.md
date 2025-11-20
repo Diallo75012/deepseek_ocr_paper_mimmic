@@ -1,13 +1,13 @@
-# Answer Summary (From the OCR Job - No AI Agent)
+# Answer Summary
 
-**Top match (cell 43,36)**
+**Top match (cell 44,27)**
 
-- Hybrid score: **0.623**  
-- Text score: **0.803**  
-- CLIP score: **0.201**
+- Hybrid score: **0.401**  
+- Text score: **0.476**  
+- CLIP score: **0.227**
 
-- Box: `y0=2238, y1=2304, x0=2164, x1=2214`
+- Box: `y0=2511, y1=2577, x0=263, x1=313`
 
 **Snippet:**
 
-> Observation: evening hours remain the busiest. Snack sales correlate with total
+> attendance. Reservation system performed within acceptable limits

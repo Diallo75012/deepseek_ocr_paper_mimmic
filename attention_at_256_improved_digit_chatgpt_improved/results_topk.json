@@ -1,38 +1,6 @@
 [
   {
     "rank": 1,
-    "idx": 254,
-    "row": 2,
-    "col": 62,
-    "box": [
-      700,
-      1050,
-      1550,
-      1575
-    ],
-    "score_hybrid": 0.5004115104675293,
-    "score_text": 0.6409968733787537,
-    "score_clip": 0.17237891256809235,
-    "snippet": "Time Slot Reserved Seats"
-  },
-  {
-    "rank": 2,
-    "idx": 150,
-    "row": 1,
-    "col": 54,
-    "box": [
-      350,
-      700,
-      1350,
-      1375
-    ],
-    "score_hybrid": 0.3770034909248352,
-    "score_text": 0.4615355432033539,
-    "score_clip": 0.17976203560829163,
-    "snippet": "attendance, reservation summary, and snack sales statistics for the last 24 hours"
-  },
-  {
-    "rank": 3,
     "idx": 617,
     "row": 6,
     "col": 41,
@@ -42,9 +10,41 @@
       1025,
       1050
     ],
-    "score_hybrid": 0.37460052967071533,
-    "score_text": 0.44647732377052307,
-    "score_clip": 0.20688802003860474,
+    "score_hybrid": 0.4013431668281555,
+    "score_text": 0.4761201739311218,
+    "score_clip": 0.22686350345611572,
     "snippet": "attendance. Reservation system performed within acceptable limits"
+  },
+  {
+    "rank": 2,
+    "idx": 254,
+    "row": 2,
+    "col": 62,
+    "box": [
+      700,
+      1050,
+      1550,
+      1575
+    ],
+    "score_hybrid": 0.35238999128341675,
+    "score_text": 0.421706885099411,
+    "score_clip": 0.19065065681934357,
+    "snippet": "Time Slot Reserved Seats"
+  },
+  {
+    "rank": 3,
+    "idx": 150,
+    "row": 1,
+    "col": 54,
+    "box": [
+      350,
+      700,
+      1350,
+      1375
+    ],
+    "score_hybrid": 0.3515196442604065,
+    "score_text": 0.4156816601753235,
+    "score_clip": 0.20180833339691162,
+    "snippet": "attendance, reservation summary, and snack sales statistics for the last 24 hours"
   }
 ]

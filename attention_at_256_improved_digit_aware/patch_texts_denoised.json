@@ -86,64 +86,40 @@
       "text": "Snack Sales (Units)"
     },
     {
-      "idx": 1994,
-      "row": 31,
+      "idx": 2058,
+      "row": 32,
       "col": 10,
       "box": [
-        1674,
         1728,
-        380,
-        418
-      ],
-      "text": "90"
-    },
-    {
-      "idx": 2122,
-      "row": 33,
-      "col": 10,
-      "box": [
         1782,
-        1836,
         380,
         418
       ],
       "text": "80"
     },
     {
-      "idx": 2186,
-      "row": 34,
+      "idx": 2250,
+      "row": 35,
       "col": 10,
       "box": [
-        1836,
         1890,
-        380,
-        418
-      ],
-      "text": "70"
-    },
-    {
-      "idx": 2314,
-      "row": 36,
-      "col": 10,
-      "box": [
         1944,
-        1998,
         380,
         418
       ],
       "text": "60"
     },
     {
-      "idx": 2442,
-      "row": 38,
+      "idx": 2378,
+      "row": 37,
       "col": 10,
       "box": [
+        1998,
         2052,
-        2106,
         380,
         418
       ],
-      "text": "50"
+      "text": "40"
     },
     {
       "idx": 2525,
@@ -167,7 +143,7 @@
         1368,
         1406
       ],
-      "text": "Observation: evening hours remain the busiest. Snack sales correlate with total"
+      "text": "Observation: evening hours (18:00—24:00) remain the busiest. Snack sales correlate with total"
     },
     {
       "idx": 2843,

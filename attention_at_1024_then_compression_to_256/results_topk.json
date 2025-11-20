@@ -1,22 +1,38 @@
 [
   {
     "rank": 1,
-    "idx": 2788,
-    "row": 43,
-    "col": 36,
+    "idx": 2843,
+    "row": 44,
+    "col": 27,
     "box": [
-      2238,
-      2304,
-      2164,
-      2214
+      2511,
+      2577,
+      263,
+      313
     ],
-    "score_hybrid": 0.6225530505180359,
-    "score_text": 0.8031121492385864,
-    "score_clip": 0.201248437166214,
-    "snippet": "Observation: evening hours remain the busiest. Snack sales correlate with total"
+    "score_hybrid": 0.4013431668281555,
+    "score_text": 0.4761201739311218,
+    "score_clip": 0.22686350345611572,
+    "snippet": "attendance. Reservation system performed within acceptable limits"
   },
   {
     "rank": 2,
+    "idx": 1001,
+    "row": 15,
+    "col": 41,
+    "box": [
+      759,
+      825,
+      2202,
+      2252
+    ],
+    "score_hybrid": 0.3632538616657257,
+    "score_text": 0.421706885099411,
+    "score_clip": 0.22686350345611572,
+    "snippet": "Time Slot Reserved Seats"
+  },
+  {
+    "rank": 3,
     "idx": 675,
     "row": 10,
     "col": 35,
@@ -26,25 +42,9 @@
       1658,
       1708
     ],
-    "score_hybrid": 0.6153746247291565,
-    "score_text": 0.79285728931427,
-    "score_clip": 0.201248437166214,
+    "score_hybrid": 0.3590362071990967,
+    "score_text": 0.4156816601753235,
+    "score_clip": 0.22686350345611572,
     "snippet": "attendance, reservation summary, and snack sales statistics for the last 24 hours"
-  },
-  {
-    "rank": 3,
-    "idx": 1553,
-    "row": 24,
-    "col": 17,
-    "box": [
-      1308,
-      1374,
-      187,
-      237
-    ],
-    "score_hybrid": 0.5160704851150513,
-    "score_text": 0.6509941816329956,
-    "score_clip": 0.201248437166214,
-    "snippet": "Figure 1 — Snack Sales Statistics"
   }
 ]
